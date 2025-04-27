@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from scipy.stats import zscore
 from sklearn.preprocessing import MinMaxScaler
+import numpy as np
 
 
 #%%
@@ -94,3 +95,26 @@ class Data():
 #
 # #%%
 # data.visualize()
+#%%
+# data = Data('EURUSDDayli.csv')
+#
+# print(data.df)
+# daata = data.df
+# import matplotlib.pyplot as plt
+# plt.plot(daata['Close'])
+# plt.title('Closing Prices')
+# plt.show()
+#
+# # ساده ترین راه تشخیص آماری
+#
+# print('[[[[[[[[[[[[[[[[[[[[[[[[[[')
+# from scipy import stats
+# z_scores = np.abs(stats.zscore(daata['Close']))
+# outliers = np.where(z_scores > 3)
+# print(outliers)
+#
+#
+# time_deltas = daata['date'].diff()
+# print(time_deltas.value_counts())
+#
+
