@@ -43,17 +43,7 @@ import torch
 
 class TransformerFinanceDataset(Dataset):
     def __init__(self, data, sequence_length=30, forecast_horizon=1, target_cols=['Close']):
-        """
-        Dataset برای مدل Transformer با قابلیت:
-        - انتخاب طول دنباله
-        - پیش‌بینی روزهای آینده
-        - پیش‌بینی چند تارگت
 
-        :param data: DataFrame شامل ویژگی‌ها و تارگت‌ها
-        :param sequence_length: چند روز گذشته رو به مدل بدهیم؟
-        :param forecast_horizon: چند روز جلوتر رو پیش‌بینی کنیم؟
-        :param target_cols: لیست نام ستون‌های تارگت (مثلاً ['Close'] یا ['Close', 'Open'])
-        """
         self.sequence_length = sequence_length
         self.forecast_horizon = forecast_horizon
         self.target_cols = target_cols
@@ -87,5 +77,58 @@ class TransformerFinanceDataset(Dataset):
 # x =  n days , y = m day for each batch
 #%%
 
-#%% md
-# 
+#%%
+import torch
+from torch.utils.data import Dataset
+
+class TrendPredictionDataset(Dataset):
+    def __init__(self, data, sequence_length=30, forecast_horizon=5,
+                 target_col='Close', threshold=0.01):  # threshold به صورت درصد مثلاً 0.01 یعنی 1٪
+        """
+        data: دیتافریم ورودی
+        sequence_length: تعداد روزهای ورودی
+        forecast_horizon: چند روز آینده را بررسی کنیم
+        target_col: ستونی که می‌خواهیم روند آن را پیش‌بینی کنیم
+        threshold: حد تغییر برای تعریف روند صعودی یا نزولی
+        """
+        self.sequence_length = sequence_length
+        self.forecast_horizon = forecast_horizon
+        self.threshold = threshold
+        self.target_col = target_col
+
+        self.data = data.copy()
+        self.data.drop(columns=['date'], inplace=True, errors='ignore')
+
+        self.features = self.data.drop(columns=[target_col]).values
+        self.targets = self.data[target_col].values
+
+        self.X, self.y = self._create_sequences()
+
+    def _create_sequences(self):
+        X, y = [], []
+        max_index = len(self.features) - self.sequence_length - self.forecast_horizon
+        for i in range(max_index):
+            seq_x = self.features[i: i + self.sequence_length]
+            current_price = self.targets[i + self.sequence_length - 1]
+            future_price = self.targets[i + self.sequence_length + self.forecast_horizon - 1]
+
+            # درصد تغییر
+            change = (future_price - current_price) / current_price
+
+            if change > self.threshold:
+                trend = 1
+            elif change < -self.threshold:
+                trend = -1
+            else:
+                trend = 0
+
+            X.append(seq_x)
+            y.append(trend)
+
+        return torch.tensor(X, dtype=torch.float32), torch.tensor(y, dtype=torch.int64)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
