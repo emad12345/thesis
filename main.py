@@ -19,4 +19,8 @@ ddf = df.df
 Train = DataProvider.TrendPredictionDataset(ddf, sequence_length=30, forecast_horizon=10,
                  target_col='Close', threshold=0.05)
 
+close_prices = ddf['Close'].values
+
+Train.visualize_labeled_trends(close_prices)
+
 

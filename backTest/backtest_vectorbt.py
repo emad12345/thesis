@@ -19,7 +19,7 @@ from sklearn.model_selection import train_test_split
 
 model = transformer.TransformerTimeSeriesModel(input_size=4, model_dim=64, num_heads=4, num_layers=2, dropout=0.1, output_size=1)
 
-model.load_state_dict(torch.load("/home/rango/DataspellProjects/untitled/theseis/runs/transformer/best_transformer_model.pth"))
+model.load_state_dict(torch.load("/theseis/results/transformer/best_transformer_model.pth"))
 
 model.eval()
 

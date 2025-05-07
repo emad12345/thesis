@@ -4,7 +4,14 @@ import torch.optim as optim
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import os
-
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import matplotlib.pyplot as plt
+import seaborn as sns
+import io
+from PIL import Image
+import torchvision.transforms as transforms
+from sklearn.metrics import confusion_matrix
 
 class TransformerTimeSeriesModel(nn.Module):
     def __init__(self, input_size=1, model_dim=64, num_heads=4, num_layers=2,
@@ -28,7 +35,7 @@ class TransformerTimeSeriesModel(nn.Module):
     def _generate_positional_encoding(self, max_len, model_dim):
         pe = torch.zeros(max_len, model_dim)
         position = torch.arange(0, max_len).unsqueeze(1).float()
-        div_term = torch.exp(torch.arange(0, model_dim, 2).float() * (-torch.log(torch.tensor(10000.0)) / model_dim))
+        div_term = torch.exp(torch.arange(0, model_dim, 2).float() * (-torch.log(torch.tensor(np.array(1000), dtype=torch.float32)) / model_dim))
 
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
@@ -64,6 +71,23 @@ class TransformerTimeSeriesModel(nn.Module):
 
     def train_model(self, train_loader, val_loader=None, lr=1e-3, epochs=50, device=None):
         writer = SummaryWriter(log_dir=os.path.join("runs", f"Transformer_{self.task}_Experiment"))
+
+        # هایپرپارامترها برای TensorBoard
+        hparams = {
+            'input_size': self.input_proj.in_features,
+            'model_dim': self.model_dim,
+            'num_heads': self.transformer_encoder.layers[0].self_attn.num_heads,
+            'num_layers': len(self.transformer_encoder.layers),
+            'dropout': self.transformer_encoder.layers[0].dropout.p,
+            'output_size': self.fc.out_features,
+            'task': self.task
+        }
+
+        final_metrics = {
+            'hparam/final_train_loss': 0.0,
+            'hparam/final_val_loss': 0.0
+        }
+
         device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
 
@@ -75,11 +99,11 @@ class TransformerTimeSeriesModel(nn.Module):
             self.train()
             total_loss = 0
 
-            for x, y in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}"):
+            for x, y in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs}"):
                 x, y = x.to(device), y.to(device)
 
                 if self.task == 'classification' and self.num_classes > 1:
-                    y = y.long().squeeze()  # For CrossEntropy
+                    y = y.long().squeeze()
 
                 optimizer.zero_grad()
                 output = self(x)
@@ -89,7 +113,7 @@ class TransformerTimeSeriesModel(nn.Module):
                 total_loss += loss.item()
 
             writer.add_scalar('Loss/Train', total_loss, epoch)
-            print(f"Epoch [{epoch+1}/{epochs}], Train Loss: {total_loss/len(train_loader):.4f}")
+            print(f"Epoch [{epoch + 1}/{epochs}], Train Loss: {total_loss / len(train_loader):.4f}")
 
             if val_loader:
                 val_loss = self.validate(val_loader, criterion, device)
@@ -99,6 +123,11 @@ class TransformerTimeSeriesModel(nn.Module):
                     torch.save(self.state_dict(), f"best_transformer_{self.task}.pth")
                     print("✅ Model saved")
 
+        final_metrics['hparam/final_train_loss'] = total_loss / len(train_loader)
+        if val_loader:
+            final_metrics['hparam/final_val_loss'] = best_loss
+
+        writer.add_hparams(hparams, final_metrics)
         writer.close()
 
     def validate(self, val_loader, criterion, device):
@@ -143,11 +172,54 @@ class TransformerTimeSeriesModel(nn.Module):
                 all_outputs.append(output.cpu())
                 all_targets.append(y.cpu())
 
+        outputs_tensor = torch.cat(all_outputs, dim=0)
+        targets_tensor = torch.cat(all_targets, dim=0)
         avg_test_loss = total_test_loss / len(test_loader)
+
         print(f"🧪 Test Loss: {avg_test_loss:.4f}")
 
         if log_tensorboard and writer:
             writer.add_scalar("Loss/Test", avg_test_loss)
 
-        return avg_test_loss, torch.cat(all_outputs), torch.cat(all_targets)
+        if self.task == 'classification':
+            y_true = targets_tensor.numpy()
+
+            if self.num_classes == 1:
+                y_prob = outputs_tensor.numpy()
+                y_pred = (y_prob > 0.5).astype(int)
+            else:
+                y_prob = outputs_tensor.numpy()
+                y_pred = y_prob.argmax(axis=1)
+
+            acc = accuracy_score(y_true, y_pred)
+            prec = precision_score(y_true, y_pred, average='macro', zero_division=0)
+            rec = recall_score(y_true, y_pred, average='macro', zero_division=0)
+            f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
+
+            print(f"✅ Accuracy: {acc:.4f} | Precision: {prec:.4f} | Recall: {rec:.4f} | F1: {f1:.4f}")
+
+            if log_tensorboard and writer:
+                writer.add_scalar("Metrics/Test_Accuracy", acc)
+                writer.add_scalar("Metrics/Test_Precision", prec)
+                writer.add_scalar("Metrics/Test_Recall", rec)
+                writer.add_scalar("Metrics/Test_F1", f1)
+
+                # 🔵 Confusion Matrix
+                cm = confusion_matrix(y_true, y_pred)
+                fig, ax = plt.subplots(figsize=(6, 5))
+                sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+                ax.set_xlabel('Predicted Labels')
+                ax.set_ylabel('True Labels')
+                ax.set_title('Confusion Matrix')
+
+                buf = io.BytesIO()
+                plt.savefig(buf, format='png')
+                buf.seek(0)
+                image = Image.open(buf)
+                image = transforms.ToTensor()(image)
+                writer.add_image("Confusion_Matrix", image, dataformats='CHW')
+                buf.close()
+                plt.close(fig)
+
+        return avg_test_loss, outputs_tensor, targets_tensor
 

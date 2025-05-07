@@ -8,7 +8,12 @@ import torch
 from sympy.physics.units import volume
 from torch.utils.data import Dataset
 from vectorbt.generic.plotting import Volume
-
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from torch.utils.data import Dataset
+import numpy as np
+import plotly.graph_objects as go
 
 class FinanceDataset(Dataset):
     def __init__(self, data, sequence_length=20, target_col='Close'):
@@ -75,25 +80,9 @@ class TransformerFinanceDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
-#%% md
-# class for forcast
-# x =  n days , y = m day for each batch
-#%%
-
-#%%
-import torch
-from torch.utils.data import Dataset
-
 class TrendPredictionDataset(Dataset):
     def __init__(self, data, sequence_length=30, forecast_horizon=5,
-                 target_col='Close', threshold=0.01):  # threshold به صورت درصد مثلاً 0.01 یعنی 1٪
-        """
-        data: دیتافریم ورودی
-        sequence_length: تعداد روزهای ورودی
-        forecast_horizon: چند روز آینده را بررسی کنیم
-        target_col: ستونی که می‌خواهیم روند آن را پیش‌بینی کنیم
-        threshold: حد تغییر برای تعریف روند صعودی یا نزولی
-        """
+                 target_col='Close', threshold=0.01):
         self.sequence_length = sequence_length
         self.forecast_horizon = forecast_horizon
         self.threshold = threshold
@@ -115,15 +104,14 @@ class TrendPredictionDataset(Dataset):
             current_price = self.targets[i + self.sequence_length - 1]
             future_price = self.targets[i + self.sequence_length + self.forecast_horizon - 1]
 
-            # درصد تغییر
             change = (future_price - current_price) / current_price
 
             if change > self.threshold:
-                trend = 1
+                trend = 2
             elif change < -self.threshold:
-                trend = -1
-            else:
                 trend = 0
+            else:
+                trend = 1
 
             X.append(seq_x)
             y.append(trend)
@@ -135,3 +123,54 @@ class TrendPredictionDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
+
+    def visualize_labeled_trends(self, price_series, title="Labeled Trends on Price"):
+        trend_labels = self.y.numpy()
+        x = np.arange(self.sequence_length, self.sequence_length + len(trend_labels))
+        price_series = np.array(price_series)
+
+        # نمودار قیمت اصلی
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=np.arange(len(price_series)),
+            y=price_series,
+            mode='lines',
+            name='Price',
+            line=dict(color='black', width=2)
+        ))
+
+        # نقاط روند
+        colors = {0: 'red', 1: 'blue', 2: 'green'}
+        symbols = {0: 'triangle-down', 1: 'circle', 2: 'triangle-up'}
+        labels = {0: 'Down', 1: 'Neutral', 2: 'Up'}
+
+        for trend in [0, 1, 2]:
+            idxs = x[trend_labels == trend]
+            fig.add_trace(go.Scatter(
+                x=idxs,
+                y=price_series[idxs],
+                mode='markers',
+                name=labels[trend],
+                marker=dict(color=colors[trend], symbol=symbols[trend], size=10),
+            ))
+
+        fig.update_layout(
+            title=title,
+            xaxis_title='Time Step',
+            yaxis_title='Price',
+            legend_title='Trend',
+            template='plotly_white',
+            height=600,
+            width=1000
+        )
+
+        fig.show()
+#%% md
+# class for forcast
+# x =  n days , y = m day for each batch
+#%%
+
+#%%
+
+
+
