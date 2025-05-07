@@ -41,7 +41,7 @@ test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 val_loader = DataLoader(val_dataset, batch_size=64)
 
 #%%
-model = transformer.TransformerTimeSeriesModel(input_size=4, model_dim=128, num_heads=8, num_layers=4, dropout=0.2, output_size=1)
+model = transformer.TransformerTimeSeriesModel(input_size=4, model_dim=128, num_heads=8, num_layers=4, dropout=0.2, output_size=1 , task='regression' )
 
 model.train_model( train_loader, val_loader, lr=1e-3, epochs=100, device='cuda')
 

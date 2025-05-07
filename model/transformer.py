@@ -7,18 +7,23 @@ import os
 
 
 class TransformerTimeSeriesModel(nn.Module):
-    def __init__(self, input_size=1, model_dim=64, num_heads=4, num_layers=2, dropout=0.1, output_size=1):
+    def __init__(self, input_size=1, model_dim=64, num_heads=4, num_layers=2,
+                 dropout=0.1, output_size=1, task='regression', num_classes=None):
         super(TransformerTimeSeriesModel, self).__init__()
 
         self.model_dim = model_dim
+        self.task = task
+        self.num_classes = num_classes if task == 'classification' else None
 
         self.input_proj = nn.Linear(input_size, model_dim)
         self.positional_encoding = self._generate_positional_encoding(500, model_dim)
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model=model_dim, nhead=num_heads, dropout=dropout, batch_first=True)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=model_dim, nhead=num_heads, dropout=dropout, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
-        self.fc = nn.Linear(model_dim, output_size)
+        # Output layer
+        self.fc = nn.Linear(model_dim, output_size if task == 'regression' else num_classes)
 
     def _generate_positional_encoding(self, max_len, model_dim):
         pe = torch.zeros(max_len, model_dim)
@@ -27,27 +32,42 @@ class TransformerTimeSeriesModel(nn.Module):
 
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        return pe.unsqueeze(0)  # shape: (1, max_len, model_dim)
+        return pe.unsqueeze(0)
 
     def forward(self, x):
-        # x shape: (batch, seq_len, input_size)
         batch_size, seq_len, _ = x.size()
         x = self.input_proj(x)
-
         pe = self.positional_encoding[:, :seq_len, :].to(x.device)
         x = x + pe
 
         x = self.transformer_encoder(x)
-        out = self.fc(x[:, -1, :])  # Use last time step output
-        return out
+        out = self.fc(x[:, -1, :])  # آخرین تایم‌استپ
+
+        if self.task == 'classification':
+            if self.num_classes == 1:
+                return torch.sigmoid(out)  # باینری
+            else:
+                return out  # چندکلاسه – loss خودش softmax می‌زنه
+        else:
+            return out  # رگرسیون
+
+    def _get_loss_fn(self):
+        if self.task == 'regression':
+            return nn.MSELoss()
+        elif self.task == 'classification':
+            if self.num_classes == 1:
+                return nn.BCEWithLogitsLoss()
+            else:
+                return nn.CrossEntropyLoss()
+        else:
+            raise ValueError("Invalid task type. Choose 'regression' or 'classification'.")
 
     def train_model(self, train_loader, val_loader=None, lr=1e-3, epochs=50, device=None):
-        writer = SummaryWriter(log_dir=os.path.join("runs", "Transformer_Finance_Experiment"))
-
+        writer = SummaryWriter(log_dir=os.path.join("runs", f"Transformer_{self.task}_Experiment"))
         device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
 
-        criterion = nn.MSELoss()
+        criterion = self._get_loss_fn()
         optimizer = optim.Adam(self.parameters(), lr=lr)
         best_loss = float('inf')
 
@@ -57,6 +77,10 @@ class TransformerTimeSeriesModel(nn.Module):
 
             for x, y in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}"):
                 x, y = x.to(device), y.to(device)
+
+                if self.task == 'classification' and self.num_classes > 1:
+                    y = y.long().squeeze()  # For CrossEntropy
+
                 optimizer.zero_grad()
                 output = self(x)
                 loss = criterion(output, y)
@@ -72,7 +96,7 @@ class TransformerTimeSeriesModel(nn.Module):
                 writer.add_scalar('Loss/Validation', val_loss, epoch)
                 if val_loss < best_loss:
                     best_loss = val_loss
-                    torch.save(self.state_dict(), "best_transformer_model.pth")
+                    torch.save(self.state_dict(), f"best_transformer_{self.task}.pth")
                     print("✅ Model saved")
 
         writer.close()
@@ -80,10 +104,13 @@ class TransformerTimeSeriesModel(nn.Module):
     def validate(self, val_loader, criterion, device):
         self.eval()
         total_val_loss = 0
-
         with torch.no_grad():
             for x, y in val_loader:
                 x, y = x.to(device), y.to(device)
+
+                if self.task == 'classification' and self.num_classes > 1:
+                    y = y.long().squeeze()
+
                 output = self(x)
                 loss = criterion(output, y)
                 total_val_loss += loss.item()
@@ -97,7 +124,7 @@ class TransformerTimeSeriesModel(nn.Module):
         self.eval()
         self.to(device)
 
-        criterion = nn.MSELoss()
+        criterion = self._get_loss_fn()
         total_test_loss = 0
         all_outputs = []
         all_targets = []
@@ -105,6 +132,10 @@ class TransformerTimeSeriesModel(nn.Module):
         with torch.no_grad():
             for x, y in test_loader:
                 x, y = x.to(device), y.to(device)
+
+                if self.task == 'classification' and self.num_classes > 1:
+                    y = y.long().squeeze()
+
                 output = self(x)
                 loss = criterion(output, y)
                 total_test_loss += loss.item()
@@ -115,19 +146,8 @@ class TransformerTimeSeriesModel(nn.Module):
         avg_test_loss = total_test_loss / len(test_loader)
         print(f"🧪 Test Loss: {avg_test_loss:.4f}")
 
-        outputs_tensor = torch.cat(all_outputs, dim=0).squeeze()
-        targets_tensor = torch.cat(all_targets, dim=0).squeeze()
-
         if log_tensorboard and writer:
             writer.add_scalar("Loss/Test", avg_test_loss)
 
-            preds = outputs_tensor.numpy()
-            reals = targets_tensor.numpy()
+        return avg_test_loss, torch.cat(all_outputs), torch.cat(all_targets)
 
-            for i, (real, pred) in enumerate(zip(reals, preds)):
-                writer.add_scalars("Test/Price_Comparison", {
-                    'Real': real,
-                    'Predicted': pred
-                }, global_step=i)
-
-        return avg_test_loss, outputs_tensor, targets_tensor
