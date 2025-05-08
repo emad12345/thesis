@@ -18,6 +18,8 @@ log_dir = os.path.join("runs", "Transformer_Finance_Experiment")
 #%% Load and preprocess data
 data = DataPross.Data('data/EURUSDDayli.csv')
 data.clean()
+data.add_indicators()
+
 data.normalize()
 df = data.df.drop(columns=['Volume'])  # Drop 'Volume' column
 
@@ -29,7 +31,7 @@ val_df, test_df = train_test_split(val_df, test_size=0.5, shuffle=False)
 sequence_length = 30
 forecast_horizon = 10
 target_cols = 'Close'
-threshold = 0.05
+threshold = 0.005
 
 train_dataset = DataProvider.TrendPredictionDataset(train_df, sequence_length, forecast_horizon, target_cols , threshold)
 val_dataset   = DataProvider.TrendPredictionDataset(val_df, sequence_length, forecast_horizon, target_cols, threshold)
@@ -42,8 +44,10 @@ val_loader   = DataLoader(val_dataset, batch_size=batch_size)
 test_loader  = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 #%% Initialize model
+
+
 model = transformer.TransformerTimeSeriesModel(
-    input_size=3,
+    input_size=13,
     model_dim=128,
     num_heads=8,
     num_layers=4,
@@ -54,10 +58,11 @@ model = transformer.TransformerTimeSeriesModel(
 )
 
 #%% Train model
-model.train_model(train_loader, val_loader, lr=1e-3, epochs=100, device=device)
+model.train_model(train_loader, val_loader, lr=1e-3, epochs=200, device=device)
 
 #%% Test model
 criterion = nn.MSELoss()
 writer = SummaryWriter(log_dir=log_dir)
 
 model.test_model(test_loader, device=device, log_tensorboard=True, writer=writer)
+

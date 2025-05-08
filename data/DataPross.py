@@ -5,6 +5,10 @@ import plotly.graph_objects as go
 from scipy.stats import zscore
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
+from ta.trend import SMAIndicator, EMAIndicator, MACD
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
+from ta.volatility import AverageTrueRange
 
 
 #%%
@@ -77,8 +81,45 @@ class Data():
 
         fig.show()
 
+    def add_indicators(self):
+        if self.df is None:
+            print("Data not loaded.")
+            return
 
+        # Ensure required columns exist
+        required_cols = ['Close', 'High', 'Low']
+        for col in required_cols:
+            if col not in self.df.columns:
+                print(f"Missing column: {col}")
+                return
 
+        # Simple Moving Averages
+        self.df['SMA_20'] = SMAIndicator(close=self.df['Close'], window=20).sma_indicator()
+        self.df['SMA_50'] = SMAIndicator(close=self.df['Close'], window=50).sma_indicator()
+
+        # Exponential Moving Average
+        self.df['EMA_20'] = EMAIndicator(close=self.df['Close'], window=20).ema_indicator()
+
+        # RSI
+        self.df['RSI'] = RSIIndicator(close=self.df['Close'], window=14).rsi()
+
+        # MACD
+        macd = MACD(close=self.df['Close'], window_slow=26, window_fast=12, window_sign=9)
+        self.df['MACD'] = macd.macd()
+        self.df['MACD_Signal'] = macd.macd_signal()
+
+        # Bollinger Bands
+        bb = BollingerBands(close=self.df['Close'], window=20, window_dev=2)
+        self.df['BB_upper'] = bb.bollinger_hband()
+        self.df['BB_middle'] = bb.bollinger_mavg()
+        self.df['BB_lower'] = bb.bollinger_lband()
+
+        # Average True Range
+        atr = AverageTrueRange(high=self.df['High'], low=self.df['Low'], close=self.df['Close'], window=14)
+        self.df['ATR'] = atr.average_true_range()
+
+        # Print number of features
+        print(f"📊 تعداد کل ویژگی‌ها پس از افزودن اندیکاتورها: {self.df.shape[1]}")
 
 
 # #%%
