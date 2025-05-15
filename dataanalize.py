@@ -8,14 +8,15 @@ import torch
 
 
 
-df = DataPross.Data('data/EURUSDDayli.csv')
+df = DataPross.Data('data/EURUSD_Candlestick_1_M_BID_04.05.2023-03.05.2025.csv')
 
 df.clean()
 df.normalize()
 # df.visualize()
 ddf = df.df
 
-
+ddf.drop(columns=['Gmt time'])
+ddf.dropna(subset=['Gmt time'])
 Train = DataProvider.TrendPredictionDataset(ddf, sequence_length=30, forecast_horizon=10,
                  target_col='Close', threshold=0.007)
 # print(len(Train.y))

@@ -104,7 +104,11 @@ class TrendPredictionDataset(Dataset):
             current_price = self.targets[i + self.sequence_length - 1]
             future_price = self.targets[i + self.sequence_length + self.forecast_horizon - 1]
 
-            change = (future_price - current_price) / current_price
+            # change = (future_price - current_price) / current_price
+            if current_price == 0:
+                change = 0  # یا continue یا مقدار خاص
+            else:
+                change = (future_price - current_price) / current_price
 
             if change > self.threshold:
                 trend = 2
@@ -116,7 +120,9 @@ class TrendPredictionDataset(Dataset):
             X.append(seq_x)
             y.append(trend)
 
+
         return torch.tensor(X, dtype=torch.float32), torch.tensor(y, dtype=torch.int64)
+
 
     def __len__(self):
         return len(self.X)

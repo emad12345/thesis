@@ -15,7 +15,7 @@ from ta.volatility import AverageTrueRange
 class Data():
     def __init__(self, path):
         self.path = path
-        self.df = pd.read_csv(path)
+        self.df = pd.read_csv(path).loc[:1000]
 
     def read_data(self):
         pass
@@ -117,6 +117,9 @@ class Data():
         # Average True Range
         atr = AverageTrueRange(high=self.df['High'], low=self.df['Low'], close=self.df['Close'], window=14)
         self.df['ATR'] = atr.average_true_range()
+        self.df.dropna(inplace=True)
+        self.df.reset_index(drop=True, inplace=True)
+
 
         # Print number of features
         print(f"📊 تعداد کل ویژگی‌ها پس از افزودن اندیکاتورها: {self.df.shape[1]}")

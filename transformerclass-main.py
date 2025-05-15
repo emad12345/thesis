@@ -16,12 +16,12 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 log_dir = os.path.join("runs", "Transformer_Finance_Experiment")
 
 #%% Load and preprocess data
-data = DataPross.Data('data/EURUSDDayli.csv')
+data = DataPross.Data('data/EURUSD_Candlestick_1_M_BID_04.05.2023-03.05.2025.csv')
 data.clean()
 data.add_indicators()
 
 data.normalize()
-df = data.df.drop(columns=['Volume'])  # Drop 'Volume' column
+df = data.df.drop(columns=['Volume' , 'Gmt time'])  # Drop 'Volume' column
 
 #%% Split data
 train_df, val_df = train_test_split(df, test_size=0.3, shuffle=False)
@@ -33,12 +33,13 @@ forecast_horizon = 10
 target_cols = 'Close'
 threshold = 0.005
 
+
 train_dataset = DataProvider.TrendPredictionDataset(train_df, sequence_length, forecast_horizon, target_cols , threshold)
 val_dataset   = DataProvider.TrendPredictionDataset(val_df, sequence_length, forecast_horizon, target_cols, threshold)
 test_dataset  = DataProvider.TrendPredictionDataset(test_df, sequence_length, forecast_horizon, target_cols, threshold)
 
 #%% Create dataloaders
-batch_size = 64
+batch_size = 32
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader   = DataLoader(val_dataset, batch_size=batch_size)
 test_loader  = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -48,17 +49,17 @@ test_loader  = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 model = transformer.TransformerTimeSeriesModel(
     input_size=13,
-    model_dim=128,
+    model_dim=64,
     num_heads=8,
-    num_layers=4,
-    dropout=0.2,
+    num_layers=3,
+    dropout=0.3,
     output_size=1,
     task= 'classification',
     num_classes=3
 )
 
 #%% Train model
-model.train_model(train_loader, val_loader, lr=1e-3, epochs=200, device=device)
+model.train_model(train_loader, val_loader, lr=1e-4, epochs=10, device=device)
 
 #%% Test model
 criterion = nn.MSELoss()
