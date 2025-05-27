@@ -77,7 +77,7 @@ for name, arr in [("train", y_train), ("val", y_val), ("test", y_test)]:
 class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train), y=y_train)
 class_weights_tensor = torch.tensor(class_weights, dtype=torch.float32).to('cuda' if torch.cuda.is_available() else 'cpu')
 loss_fn = WeightedCrossEntropyLoss(class_weights_tensor)
-
+#focal loss ros - res
 # ----- Model -----
 model = TimesNet(
     n_steps=X_train.shape[1],
@@ -92,8 +92,8 @@ model = TimesNet(
     batch_size=32,
     epochs=50,
     patience=10,
-    training_loss=loss_fn,
-    validation_metric=loss_fn,
+    # training_loss=loss_fn,
+    # validation_metric=loss_fn,
     device='cuda' if torch.cuda.is_available() else 'cpu',
     saving_path=os.path.join(log_dir, "model.pypots"),
     model_saving_strategy="best",
