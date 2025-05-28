@@ -15,7 +15,7 @@ from ta.volatility import AverageTrueRange
 class Data():
     def __init__(self, path):
         self.path = path
-        self.df = pd.read_csv(path).loc[:100]
+        self.df = pd.read_csv(path)
     def read_data(self):
         pass
 
@@ -121,7 +121,7 @@ class Data():
 
 
         # Print number of features
-        print(f"📊 تعداد کل ویژگی‌ها پس از افزودن اندیکاتورها: {self.df.shape[1]}")
+        print(self.df.shape[1])
 
 
 # #%%
