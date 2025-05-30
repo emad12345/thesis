@@ -14,7 +14,6 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 import seaborn as sns
-
 from data import DataPross, DataProvider
 from pypots.classification.timesnet import TimesNet
 from pypots.nn.modules.loss import Criterion
@@ -96,9 +95,9 @@ model = TimesNet(
     d_ffn=128,
     n_kernels=6,
     dropout=0.3,
-    batch_size=1024,
+    batch_size=512,
     epochs=100,
-    patience=5,
+    patience=10,
     training_loss=loss_fn,
     validation_metric=loss_fn,
     device=device,
