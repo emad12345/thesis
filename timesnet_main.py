@@ -17,25 +17,8 @@ import seaborn as sns
 from data import DataPross, DataProvider
 from pypots.classification.timesnet import TimesNet
 from pypots.nn.modules.loss import Criterion
+from utilits import io_utils , loss , data_utils
 
-# ===== Utilities =====
-def save_json(obj, path):
-    with open(path, "w") as f:
-        json.dump(obj, f, indent=4)
-
-def dataset_to_numpy(dataset):
-    X, y = [], []
-    for x_, y_ in DataLoader(dataset, batch_size=1):
-        X.append(x_.squeeze(0).numpy())
-        y.append(y_.item())
-    return np.array(X), np.array(y)
-
-class WeightedCrossEntropyLoss(Criterion):
-    def __init__(self, weight_tensor):
-        super().__init__()
-        self.loss_fn = nn.CrossEntropyLoss(weight=weight_tensor)
-    def forward(self, input, target):
-        return self.loss_fn(input, target)
 
 # ===== Configuration =====
 timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -50,7 +33,7 @@ writer = SummaryWriter(log_dir)
 data = DataPross.Data('data/EURUSD_Candlestick_1_M_BID_04.05.2023-03.05.2025.csv')
 data.clean()
 data.normalize()
-data.add_indicators()
+# data.add_indicators()
 df = data.df.drop(columns=['Volume', 'Gmt time'])
 
 train_df, val_df = train_test_split(df, test_size=0.3, shuffle=False)
@@ -63,13 +46,44 @@ target_col = "Close"
 
 # Dataset preparation (optional, currently loading from saved .npz)
 # train_ds = DataProvider.TrendPredictionDataset(...)
-# X_train, y_train = dataset_to_numpy(train_ds) ...
+# X_train, y_train = data_utils.dataset_to_numpy(train_ds)...
 
-save_path = "saved_data"
-data = np.load(os.path.join(save_path, 'timesnet_data.npz'))
-X_train, y_train = data['X_train'], data['y_train']
-X_val, y_val     = data['X_val'],   data['y_val']
-X_test, y_test   = data['X_test'],  data['y_test']
+# Define dataset
+train_ds = DataProvider.TrendPredictionDataset(
+    train_df,
+    sequence_length=sequence_length,
+    forecast_horizon=forecast_horizon,
+    threshold=threshold,
+    target_col=target_col
+)
+
+val_ds = DataProvider.TrendPredictionDataset(
+    val_df,
+    sequence_length=sequence_length,
+    forecast_horizon=forecast_horizon,
+    threshold=threshold,
+    target_col=target_col
+)
+
+test_ds = DataProvider.TrendPredictionDataset(
+    test_df,
+    sequence_length=sequence_length,
+    forecast_horizon=forecast_horizon,
+    threshold=threshold,
+    target_col=target_col
+)
+
+# Convert datasets to numpy arrays
+X_train, y_train = dataset_to_numpy(train_ds)
+X_val, y_val = dataset_to_numpy(val_ds)
+X_test, y_test = dataset_to_numpy(test_ds)
+
+
+# save_path = "saved_data"
+# data = np.load(os.path.join(save_path, 'timesnet_data.npz'))
+# X_train, y_train = data['X_train'], data['y_train']
+# X_val, y_val     = data['X_val'],   data['y_val']
+# X_test, y_test   = data['X_test'],  data['y_test']
 
 # ===== Class Distribution Logging =====
 for name, arr in [("train", y_train), ("val", y_val), ("test", y_test)]:
@@ -82,7 +96,7 @@ class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(
 print("Class Weights:", class_weights)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 weight_tensor = torch.tensor(class_weights, dtype=torch.float32).to(device)
-loss_fn = WeightedCrossEntropyLoss(weight_tensor)
+loss_fn = loss.WeightedCrossEntropyLoss(weight_tensor)
 
 # ===== Model Definition =====
 model = TimesNet(
@@ -166,7 +180,7 @@ metadata = {
         "test": fix_keys(Counter(y_test)),
     }
 }
-save_json(metadata, os.path.join(log_dir, "metadata.json"))
+io_utils.save_json(metadata, os.path.join(log_dir, "metadata.json"))
 
 # Finalize
 writer.flush()
