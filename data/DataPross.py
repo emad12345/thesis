@@ -15,7 +15,7 @@ from ta.volatility import AverageTrueRange
 class Data():
     def __init__(self, path):
         self.path = path
-        self.df = pd.read_csv(path)
+        self.df = pd.read_csv(path).iloc[:1000]
     def read_data(self):
         pass
 

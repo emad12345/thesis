@@ -1,0 +1,33 @@
+{
+    "hyperparameters": {
+        "n_steps": 30,
+        "n_features": 13,
+        "n_classes": 3,
+        "n_layers": 2,
+        "top_k": 5,
+        "d_model": 64,
+        "d_ffn": 128,
+        "n_kernels": 6,
+        "dropout": 0.3,
+        "batch_size": 512,
+        "epochs": 100,
+        "patience": 0
+    },
+    "class_distribution": {
+        "train": {
+            "1": 57,
+            "0": 85,
+            "2": 85
+        },
+        "val": {
+            "0": 62,
+            "2": 40,
+            "1": 1
+        },
+        "test": {
+            "0": 40,
+            "2": 60,
+            "1": 3
+        }
+    }
+}

@@ -10,6 +10,7 @@ from collections import Counter
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
+from tensorboard.data.provider import DataProvider
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
@@ -30,60 +31,63 @@ os.makedirs(tensorboard_dir, exist_ok=True)
 writer = SummaryWriter(log_dir)
 
 # ===== Data Load & Processing =====
-data = DataPross.Data('data/EURUSD_Candlestick_1_M_BID_04.05.2023-03.05.2025.csv')
-data.clean()
-data.normalize()
+# data = DataPross.Data('data/EURUSD_Candlestick_1_M_BID_04.05.2023-03.05.2025.csv')
+# data.clean()
+# data.normalize()
 # data.add_indicators()
-df = data.df.drop(columns=['Volume', 'Gmt time'])
-
-train_df, val_df = train_test_split(df, test_size=0.3, shuffle=False)
-val_df, test_df = train_test_split(val_df, test_size=0.5, shuffle=False)
-
-sequence_length = 30
-forecast_horizon = 10
-threshold = 0.0038
-target_col = "Close"
-
-# Dataset preparation (optional, currently loading from saved .npz)
-# train_ds = DataProvider.TrendPredictionDataset(...)
-# X_train, y_train = data_utils.dataset_to_numpy(train_ds)...
-
-# Define dataset
-train_ds = DataProvider.TrendPredictionDataset(
-    train_df,
-    sequence_length=sequence_length,
-    forecast_horizon=forecast_horizon,
-    threshold=threshold,
-    target_col=target_col
-)
-
-val_ds = DataProvider.TrendPredictionDataset(
-    val_df,
-    sequence_length=sequence_length,
-    forecast_horizon=forecast_horizon,
-    threshold=threshold,
-    target_col=target_col
-)
-
-test_ds = DataProvider.TrendPredictionDataset(
-    test_df,
-    sequence_length=sequence_length,
-    forecast_horizon=forecast_horizon,
-    threshold=threshold,
-    target_col=target_col
-)
-
-# Convert datasets to numpy arrays
-X_train, y_train = dataset_to_numpy(train_ds)
-X_val, y_val = dataset_to_numpy(val_ds)
-X_test, y_test = dataset_to_numpy(test_ds)
+# df = data.df.drop(columns=['Volume', 'Gmt time'])
+#
+# train_df, val_df = train_test_split(df, test_size=0.3, shuffle=False)
+# val_df, test_df = train_test_split(val_df, test_size=0.5, shuffle=False)
+#
+# sequence_length = 30
+# forecast_horizon = 10
+# threshold = 0.0038
+# target_col = "Close"
+#
+#
+#
+# # Define dataset
+# train_ds = DataProvider.TrendPredictionDataset(
+#     train_df,
+#     sequence_length=sequence_length,
+#     forecast_horizon=forecast_horizon,
+#     threshold=threshold,
+#     target_col=target_col
+# )
+#
+# val_ds = DataProvider.TrendPredictionDataset(
+#     val_df,
+#     sequence_length=sequence_length,
+#     forecast_horizon=forecast_horizon,
+#     threshold=threshold,
+#     target_col=target_col
+# )
+#
+# test_ds = DataProvider.TrendPredictionDataset(
+#     test_df,
+#     sequence_length=sequence_length,
+#     forecast_horizon=forecast_horizon,
+#     threshold=threshold,
+#     target_col=target_col
+# )
+#
+# # Convert datasets to numpy arrays
+# X_train, y_train = data_utils.dataset_to_numpy(train_ds)
+# X_val, y_val = data_utils.dataset_to_numpy(val_ds)
+# X_test, y_test = data_utils.dataset_to_numpy(test_ds)
 
 
-# save_path = "saved_data"
-# data = np.load(os.path.join(save_path, 'timesnet_data.npz'))
-# X_train, y_train = data['X_train'], data['y_train']
-# X_val, y_val     = data['X_val'],   data['y_val']
-# X_test, y_test   = data['X_test'],  data['y_test']
+
+
+save_path = "saved_data"
+data = np.load(os.path.join(save_path, 'timesnet_data.npz'))
+X_train, y_train = data['X_train'], data['y_train']
+X_val, y_val     = data['X_val'],   data['y_val']
+X_test, y_test   = data['X_test'],  data['y_test']
+
+balancer = DataProvider.BalancedDatasetBuilderSmartUndersampling(reduction_ratio=1)
+X_train, y_train = balancer.balance(X_train, y_train)
 
 # ===== Class Distribution Logging =====
 for name, arr in [("train", y_train), ("val", y_val), ("test", y_test)]:
@@ -112,8 +116,8 @@ model = TimesNet(
     batch_size=512,
     epochs=100,
     patience=10,
-    training_loss=loss_fn,
-    validation_metric=loss_fn,
+    # training_loss=loss_fn,
+    # validation_metric=loss_fn,
     device=device,
     saving_path=model_dir,
     model_saving_strategy="best",
@@ -140,7 +144,7 @@ report = classification_report(y_test, y_pred, digits=4, output_dict=True)
 writer.add_scalar("test/accuracy", acc)
 
 # Save classification report
-save_json(report, os.path.join(log_dir, "classification_report.json"))
+io_utils.save_json(report, os.path.join(log_dir, "classification_report.json"))
 
 # Confusion Matrix Plot
 cm = confusion_matrix(y_test, y_pred)

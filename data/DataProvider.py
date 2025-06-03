@@ -1708,3 +1708,109 @@ class EnhancedTripleHurdleDataset(Dataset):
         )
 
         return fig
+
+
+
+
+
+from collections import Counter
+import numpy as np
+
+class BalancedDatasetBuilder:
+    def __init__(self, random_state=42):
+        self.random_state = random_state
+
+    def balance(self, X, y):
+        np.random.seed(self.random_state)
+        class_counts = Counter(y)
+        max_count = max(class_counts.values())
+
+        X_balanced = []
+        y_balanced = []
+
+        for cls in class_counts:
+            idxs = np.where(y == cls)[0]
+            needed = max_count - len(idxs)
+
+            # Add original samples
+            X_balanced.append(X[idxs])
+            y_balanced.append(y[idxs])
+
+            # Oversample if needed
+            if needed > 0:
+                sampled_idxs = np.random.choice(idxs, size=needed, replace=True)
+                X_balanced.append(X[sampled_idxs])
+                y_balanced.append(y[sampled_idxs])
+
+        X_balanced = np.concatenate(X_balanced, axis=0)
+        y_balanced = np.concatenate(y_balanced, axis=0)
+
+        # Shuffle the result
+        shuffled_idxs = np.random.permutation(len(y_balanced))
+        return X_balanced[shuffled_idxs], y_balanced[shuffled_idxs]
+
+
+from collections import Counter
+import numpy as np
+
+class BalancedDatasetUndersampling:
+    def __init__(self, random_state=42):
+        self.random_state = random_state
+
+    def balance(self, X, y):
+        np.random.seed(self.random_state)
+        class_counts = Counter(y)
+        min_count = min(class_counts.values())
+
+        X_balanced = []
+        y_balanced = []
+
+        for cls in class_counts:
+            idxs = np.where(y == cls)[0]
+            selected_idxs = np.random.choice(idxs, size=min_count, replace=False)
+
+            X_balanced.append(X[selected_idxs])
+            y_balanced.append(y[selected_idxs])
+
+        X_balanced = np.concatenate(X_balanced, axis=0)
+        y_balanced = np.concatenate(y_balanced, axis=0)
+
+        # Shuffle the result
+        shuffled_idxs = np.random.permutation(len(y_balanced))
+        return X_balanced[shuffled_idxs], y_balanced[shuffled_idxs]
+
+
+class BalancedDatasetBuilderSmartUndersampling:
+    def __init__(self, random_state=42, reduction_ratio=1.0):
+        """
+        reduction_ratio: نسبت کاهش داده‌های کلاس‌های بزرگ نسبت به کلاس کوچک.
+        1.0 یعنی همه رو برابر با کلاس کم می‌کنه (سخت‌ترین حالت).
+        بالاتر از 1.0 یعنی داده بیشتری نگه می‌داره.
+        """
+        self.random_state = random_state
+        self.reduction_ratio = reduction_ratio
+
+    def balance(self, X, y):
+        np.random.seed(self.random_state)
+        class_counts = Counter(y)
+        min_count = min(class_counts.values())
+        target_count = int(min_count * self.reduction_ratio)
+
+        X_balanced = []
+        y_balanced = []
+
+        for cls in class_counts:
+            idxs = np.where(y == cls)[0]
+            keep_count = min(len(idxs), target_count)
+            selected_idxs = np.random.choice(idxs, size=keep_count, replace=False)
+
+            X_balanced.append(X[selected_idxs])
+            y_balanced.append(y[selected_idxs])
+
+        X_balanced = np.concatenate(X_balanced, axis=0)
+        y_balanced = np.concatenate(y_balanced, axis=0)
+
+        # Shuffle
+        shuffled_idxs = np.random.permutation(len(y_balanced))
+        return X_balanced[shuffled_idxs], y_balanced[shuffled_idxs]
+
