@@ -18,7 +18,8 @@ import seaborn as sns
 from data import DataPross, DataProvider
 from pypots.classification.timesnet import TimesNet
 from pypots.nn.modules.loss import Criterion
-from utilits import io_utils , loss , data_utils
+from utilits import io_utils , loss , data_utils ,Evaluation
+
 
 
 # ===== Configuration =====
@@ -30,7 +31,7 @@ os.makedirs(tensorboard_dir, exist_ok=True)
 
 writer = SummaryWriter(log_dir)
 
-# ===== Data Load & Processing =====
+#===== Data Load & Processing =====
 # data = DataPross.Data('data/EURUSD_Candlestick_1_M_BID_04.05.2023-03.05.2025.csv')
 # data.clean()
 # data.normalize()
@@ -44,9 +45,9 @@ writer = SummaryWriter(log_dir)
 # forecast_horizon = 10
 # threshold = 0.0038
 # target_col = "Close"
-#
-#
-#
+
+
+
 # # Define dataset
 # train_ds = DataProvider.TrendPredictionDataset(
 #     train_df,
@@ -86,7 +87,7 @@ X_train, y_train = data['X_train'], data['y_train']
 X_val, y_val     = data['X_val'],   data['y_val']
 X_test, y_test   = data['X_test'],  data['y_test']
 
-balancer = DataProvider.BalancedDatasetBuilderSmartUndersampling(reduction_ratio=1)
+balancer = DataProvider.BalancedDatasetUndersampling()
 X_train, y_train = balancer.balance(X_train, y_train)
 
 # ===== Class Distribution Logging =====
@@ -185,7 +186,8 @@ metadata = {
     }
 }
 io_utils.save_json(metadata, os.path.join(log_dir, "metadata.json"))
-
+report_generator = Evaluation.EvaluationReportGenerator(model, log_dir)
+report_generator.generate_report(X_train, y_train, X_val, y_val, X_test, y_test)
 # Finalize
 writer.flush()
 writer.close()
