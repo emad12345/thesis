@@ -29,7 +29,7 @@ model_dir = os.path.join(log_dir, "model.pypots")
 tensorboard_dir = os.path.join(model_dir, "tensorboard")
 os.makedirs(tensorboard_dir, exist_ok=True)
 
-writer = SummaryWriter(log_dir)
+# writer = SummaryWriter(log_dir)
 
 #===== Data Load & Processing =====
 # data = DataPross.Data('data/EURUSD_Candlestick_1_M_BID_04.05.2023-03.05.2025.csv')
@@ -45,9 +45,9 @@ writer = SummaryWriter(log_dir)
 # forecast_horizon = 10
 # threshold = 0.0038
 # target_col = "Close"
-
-
-
+#
+#
+#
 # # Define dataset
 # train_ds = DataProvider.TrendPredictionDataset(
 #     train_df,
@@ -77,8 +77,8 @@ writer = SummaryWriter(log_dir)
 # X_train, y_train = data_utils.dataset_to_numpy(train_ds)
 # X_val, y_val = data_utils.dataset_to_numpy(val_ds)
 # X_test, y_test = data_utils.dataset_to_numpy(test_ds)
-
-
+#
+#
 
 
 save_path = "saved_data"
@@ -87,14 +87,14 @@ X_train, y_train = data['X_train'], data['y_train']
 X_val, y_val     = data['X_val'],   data['y_val']
 X_test, y_test   = data['X_test'],  data['y_test']
 
-balancer = DataProvider.BalancedDatasetUndersampling()
-X_train, y_train = balancer.balance(X_train, y_train)
+# balancer = DataProvider.BalancedDatasetUndersampling()
+# X_train, y_train = balancer.balance(X_train, y_train)
 
 # ===== Class Distribution Logging =====
-for name, arr in [("train", y_train), ("val", y_val), ("test", y_test)]:
-    dist = Counter(arr)
-    for k, v in dist.items():
-        writer.add_scalar(f"class_dist/{name}_class_{k}", v)
+# for name, arr in [("train", y_train), ("val", y_val), ("test", y_test)]:
+#     dist = Counter(arr)
+#     for k, v in dist.items():
+#         writer.add_scalar(f"class_dist/{name}_class_{k}", v)
 
 # ===== Class Weights & Loss Function =====
 class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train), y=y_train)
@@ -117,8 +117,8 @@ model = TimesNet(
     batch_size=512,
     epochs=100,
     patience=10,
-    # training_loss=loss_fn,
-    # validation_metric=loss_fn,
+    training_loss=loss_fn,
+    validation_metric=loss_fn,
     device=device,
     saving_path=model_dir,
     model_saving_strategy="best",
@@ -142,7 +142,7 @@ torch.cuda.empty_cache()
 # ===== Evaluation =====
 acc = accuracy_score(y_test, y_pred)
 report = classification_report(y_test, y_pred, digits=4, output_dict=True)
-writer.add_scalar("test/accuracy", acc)
+# writer.add_scalar("test/accuracy", acc)
 
 # Save classification report
 io_utils.save_json(report, os.path.join(log_dir, "classification_report.json"))
@@ -155,7 +155,7 @@ plt.title("Confusion Matrix")
 plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.savefig(os.path.join(log_dir, "confusion_matrix.png"))
-writer.add_figure("ConfusionMatrix", plt.gcf())
+# writer.add_figure("ConfusionMatrix", plt.gcf())
 
 # Save Outputs
 np.save(os.path.join(log_dir, "sample_probs.npy"), probs[0])
@@ -186,8 +186,10 @@ metadata = {
     }
 }
 io_utils.save_json(metadata, os.path.join(log_dir, "metadata.json"))
+gc.collect()
+torch.cuda.empty_cache()
 report_generator = Evaluation.EvaluationReportGenerator(model, log_dir)
 report_generator.generate_report(X_train, y_train, X_val, y_val, X_test, y_test)
 # Finalize
-writer.flush()
-writer.close()
+# writer.flush()
+# writer.close()
