@@ -32,7 +32,7 @@ class CustomMultiheadAttention(nn.Module):
 
         # Final linear layer
         self.final_linear = nn.Linear(embed_dim * seq_length, embed_dim)
-
+        
         # Dropout layer
         self.dropout = nn.Dropout(p=0.1)
 
@@ -131,7 +131,7 @@ class _TimesNet(ModelCore):
             # nn.AdaptiveAvgPool1d(1)  # Global average pooling to get fixed size output
         )
         embed_dim = 64  # Embedding size for each token
-        num_heads = 4  # Number of attention heads
+        num_heads = 1  # Number of attention heads
         seq_length = 30  # Length of the sequence
         self.seq_length = seq_length
         # Create an instance of MultiheadAttention
@@ -170,12 +170,15 @@ class _TimesNet(ModelCore):
         cnn_out = cnn_out.permute(0, 2, 1)
         cnn_out = self.dropout(cnn_out)
         # print(f'cnn_out.shape{cnn_out.shape}')
-        combined_features, _ = self.attm(timesnet_output , cnn_out ,cnn_out )
+        concated_features = torch.cat([timesnet_output, cnn_out], dim=-1)
+        #combined_features, _ = self.attm(timesnet_output , cnn_out , cnn_out)
+        #head1 and head2 
+        combined_features, _ = self.attm(timesnet_output , concated_features , concated_features)
+
         combined_features = combined_features.squeeze(1)
 
         # print("combined_features shape:", combined_features.shape)
 
-        cnn_out = self.dropout(cnn_out)
 
         # cnn_flat = cnn_out.squeeze(-1)  # [B, 128]
 
